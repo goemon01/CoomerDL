@@ -1,3 +1,6 @@
+import os
+import datetime
+from pathlib import Path
 from concurrent.futures import as_completed
 
 from downloader.core.base_api_downloader import BaseApiDownloader
@@ -70,6 +73,52 @@ class CoomerfansDownloader(BaseApiDownloader):
             self.enable_widgets_callback()
 
     def _download_entries(self, media_entries, default_user_id=None):
+        """
+        GÜNCELLENDİ: Video linklerini log yerine timestamp'li bir TXT dosyasına yazar.
+        """
+
+        # === YENİ EKLENEN KOD BLOĞU (SADECE TXT YAZMA) ===
+
+        video_count = 0
+        video_extensions = (".mp4", ".m4v", ".mkv", ".webm", ".mov", ".avi")
+
+        # Timestamp oluştur
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+        # Dosya adı
+        output_file = f"determined_links_{timestamp}.txt"
+
+        # Dosyayı oluştur ve başlık yaz
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write("=== BULUNAN VİDEO LİNKLERİ ===\n")
+
+        # Tüm entry'ler üzerinde loop
+        for entry in media_entries:
+            media_url = entry.get("media_url", "")
+            resource_type = entry.get("resource_type", "")
+            clean_url = media_url.split("?")[0].lower()
+
+            if (
+                resource_type == "Video"
+                or clean_url.endswith(video_extensions)
+                or any(ext in clean_url for ext in video_extensions)
+            ):
+                video_count += 1
+
+                # Her video linkini dosyaya yaz
+                with open(output_file, "a", encoding="utf-8") as f:
+                    f.write(media_url + "\n")
+
+        # Sonuç satırını yaz
+        with open(output_file, "a", encoding="utf-8") as f:
+            f.write(f"\nToplam {video_count} adet video linki sıraya alındı.\n")
+
+        # === İNDİRMEYİ DURDUR — LİSTEYİ GÜVENLİ ŞEKİLDE BOŞALT ===
+        if isinstance(media_entries, list):
+            media_entries.clear()
+        else:
+            media_entries = []
+            
         self.total_files = len(media_entries)
         self.completed_files = 0
         futures = []
