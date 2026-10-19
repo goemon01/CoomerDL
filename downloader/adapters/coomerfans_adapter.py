@@ -1,5 +1,6 @@
+import os
 import re
-from urllib.parse import urljoin, urlparse
+from urllib.parse import urljoin, urlparse, parse_qs
 
 from bs4 import BeautifulSoup
 
@@ -14,11 +15,22 @@ class CoomerfansAdapter(RetryingScraper):
                  should_cancel=None, cache_db_path="resources/config/downloads.db",
                  max_retries=3, retry_interval=2.0, request_interval=0.0):
         self.session = session
-        self.headers = headers or {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        self.headers = {
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
             "Referer": "https://coomerfans.com/",
         }
+        
+        headers_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "headers.txt")
+        if os.path.exists(headers_file):
+            try:
+                with open(headers_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        if ":" in line:
+                            key, value = line.split(":", 1)
+                            self.headers[key.strip()] = value.strip()
+            except Exception as e:
+                self.log("COOMERFANS_HEADERS_READ_ERROR", error=e)
+        
         self.log_callback = log_callback
         self.tr = tr if tr else (lambda x, **kwargs: x.format(**kwargs) if kwargs else x)
         self._post_cache = ResolutionCache("coomerfans_post_cache", db_path=cache_db_path)
@@ -66,7 +78,7 @@ class CoomerfansAdapter(RetryingScraper):
 
             media = []
             page = 1
-            max_pages = 100  # Safety limit to prevent infinite loops
+            max_pages = 250  # Safety limit to prevent infinite loops
             seen_post_links = set()
             self._cache_hits = 0
             self._cache_misses = 0
@@ -285,7 +297,6 @@ class CoomerfansAdapter(RetryingScraper):
                 self.log("COOMERFANS_PROCESSING_POST", url=post_url, post_id=post_id)
                 soup = self._request_soup(post_url)
                 raw_media = self._scrape_post_media(soup, post_url)
-                self._post_cache.store(post_url, raw_media)
             else:
                 self._cache_hits += 1
 
